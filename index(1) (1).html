@@ -1,0 +1,139 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#0f766e">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-title" content="El Cid MGA Members">
+<title>El Cid MGA Members</title>
+<style>
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+body{margin:0;background:#f3f4f6;color:#17202a;font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif}
+.app{max-width:650px;margin:auto;min-height:100vh;background:#fff;padding:20px 16px 30px}
+header{text-align:center;padding:10px 0 18px}
+h1{margin:0;font-size:29px;line-height:1.15}
+.sub{margin-top:5px;color:#6b7280;font-size:14px}
+.search{width:100%;height:54px;border:2px solid #d1d5db;border-radius:14px;padding:0 16px;background:#f9fafb;font-size:18px;outline:0}
+.search:focus{border-color:#0f766e;background:#fff}
+.status{text-align:center;color:#6b7280;padding:14px 4px;font-size:14px}
+.card{padding:15px;margin:10px 0;border-radius:14px;background:#f8fafc;border:1px solid #e5e7eb}
+.name{font-size:21px;font-weight:800;margin-bottom:12px}
+.actions{display:flex;gap:8px}
+.actions a{flex:1;text-align:center;text-decoration:none;padding:11px 6px;border-radius:10px;font-size:15px;font-weight:800;color:#fff}
+.email{background:#2563eb}
+.text{background:#059669}
+.call{background:#7c3aed}
+.empty{text-align:center;color:#6b7280;padding:35px 10px}
+.refresh{width:100%;padding:12px;margin-top:8px;border:1px solid #d1d5db;border-radius:11px;background:#fff;color:#374151;font-size:16px;font-weight:700}
+.note{text-align:center;color:#9ca3af;font-size:12px;margin-top:15px}
+</style>
+</head>
+<body>
+<div class="app">
+<header>
+<h1>El Cid MGA Members</h1>
+<div class="sub">Member Directory</div>
+</header>
+
+<input id="search" class="search" type="search" placeholder="Search member name..." autocomplete="off" oninput="render()">
+
+<div id="status" class="status">Loading members...</div>
+<div id="list"></div>
+
+<button class="refresh" type="button" onclick="loadCSV()">↻ Refresh Members</button>
+<div class="note">Email, Text and Call buttons use your device's normal apps.</div>
+</div>
+
+<script>
+let members=[];
+
+function parseCSV(t){
+  let a=[],r=[],c="",q=false;
+  for(let i=0;i<t.length;i++){
+    let x=t[i],n=t[i+1];
+    if(x=='"'){
+      if(q&&n=='"'){c+='"';i++}else q=!q;
+    }else if(x==','&&!q){
+      r.push(c);c="";
+    }else if((x=='\n'||x=='\r')&&!q){
+      if(x=='\r'&&n=='\n')i++;
+      r.push(c);
+      if(r.some(v=>v.trim()))a.push(r);
+      r=[];c="";
+    }else c+=x;
+  }
+  if(c||r.length){r.push(c);a.push(r)}
+  return a;
+}
+
+function esc(s){
+  return String(s).replace(/[&<>"']/g,m=>({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"
+  }[m]));
+}
+
+function phoneForLink(s){
+  return String(s||"").replace(/[^\d+]/g,"");
+}
+
+function render(){
+  let term=document.getElementById("search").value.trim().toLowerCase();
+
+  let data=members.filter(m=>{
+    if(!term)return true;
+    let full=(m.first+" "+m.last).toLowerCase();
+    let reverse=(m.last+" "+m.first).toLowerCase();
+    return full.includes(term)||reverse.includes(term);
+  });
+
+  data.sort((a,b)=>
+    a.last.localeCompare(b.last,undefined,{sensitivity:"base"}) ||
+    a.first.localeCompare(b.first,undefined,{sensitivity:"base"})
+  );
+
+  document.getElementById("status").textContent =
+    members.length ? data.length+" member"+(data.length===1?"":"s")+" shown" : "No members found";
+
+  document.getElementById("list").innerHTML=data.length
+    ? data.map(m=>{
+        let fullName=esc((m.first+" "+m.last).trim());
+        let email=esc(m.email);
+        let phone=phoneForLink(m.phone);
+        return '<div class="card">'+
+          '<div class="name">'+fullName+'</div>'+
+          '<div class="actions">'+
+          (m.email?'<a class="email" href="mailto:'+email+'">✉ Email</a>':'')+
+          (phone?'<a class="text" href="sms:'+esc(phone)+'">💬 Text</a>':'')+
+          (phone?'<a class="call" href="tel:'+esc(phone)+'">☎ Call</a>':'')+
+          '</div></div>';
+      }).join("")
+    : '<div class="empty">No matching members.</div>';
+}
+
+async function loadCSV(){
+  document.getElementById("status").textContent="Loading members...";
+  try{
+    const r=await fetch("el-cid-mga-members.csv?v="+Date.now(),{cache:"no-store"});
+    if(!r.ok)throw Error("HTTP "+r.status);
+    let rows=parseCSV(await r.text());
+    if(rows.length<2)throw Error("No data rows");
+
+    members=rows.slice(1).map(x=>({
+      last:(x[0]||"").trim(),
+      first:(x[1]||"").trim(),
+      email:(x[2]||"").trim(),
+      phone:(x[3]||"").trim()
+    })).filter(x=>x.last||x.first||x.email||x.phone);
+
+    render();
+  }catch(e){
+    document.getElementById("status").textContent="Could not load el-cid-mga-members.csv. Make sure it is in the same GitHub folder as index.html.";
+    document.getElementById("list").innerHTML="";
+  }
+}
+
+loadCSV();
+</script>
+</body>
+</html>
