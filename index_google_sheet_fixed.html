@@ -1,0 +1,157 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Cid MGA Members</title>
+<script src="https://cdn.jsdelivr.net/npm/xlsx@0.18.5/dist/xlsx.full.min.js"></script>
+<style>
+*{box-sizing:border-box}
+body{margin:0;font-family:Arial,sans-serif;background:#f3f5f3;color:#222}
+header{background:#176b3a;color:white;padding:18px 14px;text-align:center}
+h1{margin:0;font-size:25px}
+.subtitle{margin-top:4px;font-size:14px;opacity:.9}
+.container{max-width:650px;margin:auto;padding:14px}
+.search{width:100%;padding:13px 14px;border:1px solid #ccc;border-radius:10px;font-size:17px;margin-bottom:10px}
+.refresh{width:100%;padding:11px;border:0;border-radius:9px;background:#555;color:white;font-size:15px;margin-bottom:14px}
+.status{text-align:center;color:#666;font-size:14px;margin:8px 0 14px}
+.card{background:white;border-radius:12px;padding:14px;margin-bottom:10px;box-shadow:0 1px 4px #ccc}
+.name{font-size:19px;font-weight:bold;margin-bottom:10px}
+.buttons{display:grid;grid-template-columns:repeat(4,1fr);gap:8px}
+.buttons a{text-align:center;text-decoration:none;color:white;padding:10px 5px;border-radius:8px;font-size:15px}
+@media (max-width:520px){.buttons{grid-template-columns:repeat(2,1fr)}}
+.email{background:#2878c8}
+.text{background:#168a52}
+.call{background:#d28a18}\n.whatsapp{background:#25D366}
+.empty{text-align:center;padding:25px;color:#777}
+</style>
+</head>
+<body>
+<header>
+<h1>El Cid MGA Members</h1>
+<div class="subtitle">Member Directory</div>
+</header>
+
+<div class="container">
+<input id="search" class="search" type="search" placeholder="Search member name...">
+<button class="refresh" onclick="loadMembers()">↻ Refresh Members</button>
+<div id="status" class="status">Loading members...</div>
+<div id="members"></div>
+</div>
+
+<script>
+const DATA_URL = "https://script.google.com/macros/s/AKfycbxv1r1AgwFSlyqkgy_cMfYh5muiHxEF1IwzsFc2w8El1YCsR8_zseB4N8NnUj75iiGZQg/exec";
+let members = [];
+
+async function fetchMemberData() {
+  const response = await fetch(DATA_URL + "?v=" + Date.now(), {
+    cache: "no-store"
+  });
+  if (!response.ok) throw new Error("HTTP " + response.status);
+
+  const data = await response.json();
+
+  if (!Array.isArray(data)) {
+    throw new Error(data.error || "Invalid member data");
+  }
+
+  return {file: "Google Sheet", rows: data};
+}
+
+async function loadMembers() {
+  const status = document.getElementById("status");
+  status.textContent = "Loading members...";
+  try {
+    const result = await fetchMemberData();
+
+    // EXACT COLUMN MAPPING:
+    // A = Last Name (0)
+    // B = First Name (1)
+    // C = Email (2)
+    // J = Phone (9)
+    members = result.rows.slice(1).map(row => ({
+      lastName: String(row[0] || "").trim(),
+      firstName: String(row[1] || "").trim(),
+      email: String(row[2] || "").trim(),
+      phone: String(row[9] || "").trim()
+    })).filter(m => m.lastName || m.firstName);
+
+    members.sort((a,b) =>
+      (a.lastName + " " + a.firstName).localeCompare(
+        b.lastName + " " + b.firstName
+      )
+    );
+
+    status.textContent = `${members.length} members`;
+    renderMembers();
+  } catch (error) {
+    console.error(error);
+    members = [];
+    status.textContent = "Could not load the member file.";
+    document.getElementById("members").innerHTML =
+      '<div class="empty">Could not load the member directory from Google Sheets.<br><br>Please check that the Apps Script web app is deployed for <b>Anyone</b>.</div>';
+  }
+}
+
+function renderMembers() {
+  const container = document.getElementById("members");
+  const search = document.getElementById("search").value.toLowerCase().trim();
+
+  const filtered = members.filter(m => {
+    const full1 = `${m.firstName} ${m.lastName}`.toLowerCase();
+    const full2 = `${m.lastName} ${m.firstName}`.toLowerCase();
+    return !search || full1.includes(search) || full2.includes(search);
+  });
+
+  if (!filtered.length) {
+    container.innerHTML = '<div class="empty">No members found.</div>';
+    return;
+  }
+
+  container.innerHTML = filtered.map(m => {
+    const name = `${m.firstName} ${m.lastName}`.trim();
+    const email = m.email;
+    const phone = m.phone;
+
+    const emailButton = email
+      ? `<a class="email" href="mailto:${encodeURIComponent(email)}">✉ Email</a>`
+      : `<a class="email" href="#" onclick="return false;">✉ Email</a>`;
+
+    const textButton = phone
+      ? `<a class="text" href="sms:${phone.replace(/[^\d+]/g,'')}">💬 Text</a>`
+      : `<a class="text" href="#" onclick="return false;">💬 Text</a>`;
+
+    // Keep the original working Call behavior: a plain tel: link.
+    const callButton = phone
+      ? `<a class="call" href="tel:${phone.replace(/[^\d+]/g,'')}">☎ Call</a>`
+      : `<a class="call" href="#" onclick="return false;">☎ Call</a>`;
+
+    const whatsappNumber = phone.replace(/\D/g,'');
+    const whatsappButton = whatsappNumber
+      ? `<a class="whatsapp" href="https://wa.me/${whatsappNumber}">🟢 WhatsApp</a>`
+      : `<a class="whatsapp" href="#" onclick="return false;">🟢 WhatsApp</a>`;
+
+    return `
+      <div class="card">
+        <div class="name">${escapeHtml(name)}</div>
+        <div class="buttons">
+          ${emailButton}
+          ${textButton}
+          ${callButton}
+          ${whatsappButton}
+        </div>
+      </div>`;
+  }).join("");
+}
+
+function escapeHtml(value) {
+  return value.replace(/[&<>"']/g, c => ({
+    "&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"
+  }[c]));
+}
+
+document.getElementById("search").addEventListener("input", renderMembers);
+loadMembers();
+</script>
+</body>
+</html>
