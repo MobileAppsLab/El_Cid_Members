@@ -1,0 +1,172 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>El Cid Member Profiles</title>
+<style>body{font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Arial,sans-serif;background:#eef2ef;margin:0;padding:14px;color:#18221c}
+.container{max-width:800px;margin:auto}
+h1{text-align:center;margin:4px 0 4px;color:#176b3a;font-size:27px}
+.subtitle{text-align:center;color:#69746d;font-size:13px;margin-bottom:14px}
+#search{width:100%;box-sizing:border-box;padding:13px 14px;font-size:17px;border:1px solid #ccd5cf;border-radius:12px;margin-bottom:14px;background:#fff;box-shadow:0 1px 3px rgba(0,0,0,.05)}
+.member{background:#fff;border-radius:15px;padding:15px;margin-bottom:12px;box-shadow:0 2px 8px rgba(0,0,0,.08);border:1px solid #e1e7e3}
+.name{font-size:20px;font-weight:700;margin-bottom:12px;color:#176b3a;display:flex;align-items:center;gap:9px}
+.name-icon{width:34px;height:34px;border-radius:50%;background:#e7f2eb;display:inline-flex;align-items:center;justify-content:center;font-size:18px;flex:0 0 34px}
+.profile{display:grid;grid-template-columns:34px 125px 1fr;gap:0 9px;font-size:15px}
+.profile-row{display:contents}
+.icon{width:30px;height:30px;border:0;border-radius:8px;background:#f1f5f2;display:flex;align-items:center;justify-content:center;font-size:16px;margin:2px 0;cursor:pointer;padding:0}.icon.action{background:#e7f2eb}.icon:active{transform:scale(.96)}
+.label{font-weight:600;color:#68736c;align-self:center;padding:7px 0}
+.value{color:#202923;align-self:center;padding:7px 0;overflow-wrap:anywhere}
+.empty{color:#a0aaa4}
+#status{text-align:center;padding:20px;color:#666}
+.action-menu{position:fixed;inset:0;background:rgba(0,0,0,.38);display:flex;align-items:flex-end;justify-content:center;padding:14px;z-index:1000}
+.action-card{width:min(420px,100%);background:#fff;border-radius:18px;padding:16px;box-shadow:0 8px 30px rgba(0,0,0,.22)}
+.action-title{font-size:18px;font-weight:700;text-align:center;margin-bottom:4px;color:#176b3a}
+.action-number{text-align:center;color:#66716a;font-size:14px;margin-bottom:13px;overflow-wrap:anywhere}
+.action-buttons{display:grid;grid-template-columns:repeat(3,1fr);gap:9px}
+.action-buttons button{min-height:48px;border:0;border-radius:10px;font-size:15px;font-weight:600;color:#fff;cursor:pointer}
+.action-call{background:#2e7d32}.action-text{background:#555}.action-whatsapp{background:#25D366}
+.action-cancel{width:100%;margin-top:10px;height:44px;border:0;border-radius:10px;background:#e9eeeb;color:#24412f;font-size:15px;font-weight:600}
+@media(max-width:520px){
+ .profile{grid-template-columns:32px 112px 1fr;font-size:14px}
+ h1{font-size:24px}
+ .name{font-size:19px}
+}
+</style>
+</head>
+<body>
+<div class="container">
+<h1>El Cid Member Profiles</h1>
+<div class="subtitle">Member information</div>
+<input id="search" type="search" placeholder="Search by first or last name...">
+<div id="status">Loading members...</div>
+<div id="members"></div>
+<div id="actionMenu" class="action-menu" style="display:none"></div>
+</div>
+<script>
+const DATA_URL="https://script.google.com/macros/s/AKfycbxv1r1AgwFSlyqkgy_cMfYh5muiHxEF1IwzsFc2w8El1YCsR8_zseB4N8NnUj75iiGZQg/exec";
+let members=[];
+function loadMembers(){
+ const callbackName="loadMembersCallback_"+Date.now();
+ window[callbackName]=function(data){
+  try{
+   if(!Array.isArray(data))throw new Error("Invalid member data");
+   members=data.slice(1).map(row=>({
+    last:String(row[0]??"").trim(),
+    first:String(row[1]??"").trim(),
+    email:String(row[2]??"").trim(),
+    handicap:String(row[3]??"").trim(),
+    street:String(row[4]??"").trim(),
+    city:String(row[5]??"").trim(),
+    state:String(row[6]??"").trim(),
+    zip:String(row[7]??"").trim(),
+    country:String(row[8]??"").trim(),
+    phone:String(row[9]??"").trim(),
+    cellPhone:String(row[10]??"").trim(),
+    canadaUsPhone:String(row[11]??"").trim(),
+    whatsapp:String(row[12]??"").trim()
+   })).filter(m=>m.last||m.first);
+   delete window[callbackName];
+   const script=document.getElementById(callbackName);
+   if(script)script.remove();
+   document.getElementById("status").textContent="";
+   renderMembers();
+  }catch(e){showError();}
+ };
+ const script=document.createElement("script");
+ script.id=callbackName;
+ script.src=DATA_URL+"?callback="+encodeURIComponent(callbackName);
+ script.onerror=function(){delete window[callbackName];script.remove();showError()};
+ document.body.appendChild(script);
+}
+
+function showError(){
+ document.getElementById("status").textContent="The member data could not be loaded. Please check the Apps Script deployment.";
+}
+
+function renderMembers(){
+ const search=document.getElementById("search").value.trim().toLowerCase();
+ const container=document.getElementById("members");
+ const filtered=members.filter(m=>{
+  if(!search)return true;
+  return [m.first,m.last,m.email,m.handicap,m.street,m.city,m.state,m.zip,m.country,m.phone,m.cellPhone,m.canadaUsPhone,m.whatsapp]
+   .some(v=>v.toLowerCase().includes(search));
+ });
+ if(!filtered.length){container.innerHTML='<div class="member">No members found.</div>';return}
+ container.innerHTML=filtered.map(m=>{
+  const fullName=[m.last,m.first].filter(Boolean).join(", ");
+  return `
+   <div class="member">
+    <div class="name"><span class="name-icon">👤</span><span>${escapeHtml(fullName)}</span></div>
+    <div class="profile">
+     <div class="profile-row"><button type="button" class="icon action" aria-label="Email ${escapeAttr(fullName)}" onclick="openEmail('${escapeJs(m.email)}')">✉️</button><div class="label">Email</div><div class="value">${display(m.email)}</div></div>
+     <div class="profile-row"><div class="icon">⛳</div><div class="label">Handicap</div><div class="value">${display(m.handicap)}</div></div>
+     <div class="profile-row"><div class="icon">🏠</div><div class="label">Street</div><div class="value">${display(m.street)}</div></div>
+     <div class="profile-row"><div class="icon">🏙️</div><div class="label">City</div><div class="value">${display(m.city)}</div></div>
+     <div class="profile-row"><div class="icon">📍</div><div class="label">State / Province</div><div class="value">${display(m.state)}</div></div>
+     <div class="profile-row"><div class="icon">📮</div><div class="label">ZIP / Postal</div><div class="value">${display(m.zip)}</div></div>
+     <div class="profile-row"><div class="icon">🌎</div><div class="label">Country</div><div class="value">${display(m.country)}</div></div>
+     <div class="profile-row"><button type="button" class="icon action" aria-label="Contact ${escapeAttr(fullName)} by phone" onclick="showActions('${escapeJs(fullName)}','${escapeJs(m.phone)}')">☎️</button><div class="label">Phone</div><div class="value">${display(m.phone)}</div></div>
+     <div class="profile-row"><button type="button" class="icon action" aria-label="Contact ${escapeAttr(fullName)} by cell phone" onclick="showActions('${escapeJs(fullName)}','${escapeJs(m.cellPhone)}')">📱</button><div class="label">Cell Phone</div><div class="value">${display(m.cellPhone)}</div></div>
+     <div class="profile-row"><button type="button" class="icon action" aria-label="Contact ${escapeAttr(fullName)} by Canada US phone" onclick="showActions('${escapeJs(fullName)}','${escapeJs(m.canadaUsPhone)}')">🇨🇦🇺🇸</button><div class="label">Canada/US Phone</div><div class="value">${display(m.canadaUsPhone)}</div></div>
+     <div class="profile-row"><button type="button" class="icon action" aria-label="Contact ${escapeAttr(fullName)} on WhatsApp" onclick="showActions('${escapeJs(fullName)}','${escapeJs(m.whatsapp)}')">🟢</button><div class="label">WhatsApp</div><div class="value">${display(m.whatsapp)}</div></div>
+    </div>
+   </div>`;
+ }).join("");
+}
+
+function display(value){return value?escapeHtml(value):"<span class=\"empty\">—</span>";}
+
+function escapeAttr(value){
+ return String(value??"").replace(/&/g,"&amp;").replace(/"/g,"&quot;").replace(/</g,"&lt;").replace(/>/g,"&gt;");
+}
+function escapeJs(value){
+ return String(value??"").replace(/\\/g,"\\\\").replace(/'/g,"\\'").replace(/\r/g,"\\r").replace(/\n/g,"\\n");
+}
+function openEmail(email){
+ if(!email)return;
+ window.location.href="mailto:"+email;
+}
+function showActions(name, phone){
+ const menu=document.getElementById("actionMenu");
+ const clean=String(phone??"").replace(/[^\d+]/g,"");
+ const whatsapp=String(phone??"").replace(/\D/g,"");
+ if(!clean){
+   menu.innerHTML='<div class="action-card"><div class="action-title">No phone number</div><button class="action-cancel" type="button" onclick="closeActions()">Close</button></div>';
+   menu.style.display="flex";
+   return;
+ }
+ menu.innerHTML=`<div class="action-card" role="dialog" aria-modal="true">
+   <div class="action-title">Contact</div>
+   <div class="action-number">${escapeHtml(name)}<br>${escapeHtml(phone)}</div>
+   <div class="action-buttons">
+     <button type="button" class="action-call" onclick="doCall('${escapeJs(clean)}')">☎ Call</button>
+     <button type="button" class="action-text" onclick="doText('${escapeJs(clean)}')">💬 Text</button>
+     <button type="button" class="action-whatsapp" onclick="doWhatsApp('${escapeJs(whatsapp)}')">🟢 WhatsApp</button>
+   </div>
+   <button type="button" class="action-cancel" onclick="closeActions()">Cancel</button>
+ </div>`;
+ menu.style.display="flex";
+}
+function closeActions(){
+ document.getElementById("actionMenu").style.display="none";
+}
+function doCall(phone){
+ closeActions();
+ window.location.href="tel:"+phone;
+}
+function doText(phone){
+ closeActions();
+ window.location.href="sms:"+phone;
+}
+function doWhatsApp(phone){
+ closeActions();
+ window.location.href="https://wa.me/"+phone;
+}
+
+function escapeHtml(value){return value.replace(/[&<>"']/g,ch=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#039;"}[ch]))}
+document.getElementById("search").addEventListener("input",renderMembers);
+loadMembers();
+</script>
+</body>
+</html>
